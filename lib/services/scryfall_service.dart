@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/commander_card.dart';
+import '../models/deck_bucket.dart';
 
 class ScryfallService {
   final http.Client _client;
@@ -59,6 +60,65 @@ class ScryfallService {
       return _parseCard(data);
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Recupera equivalenti funzionali e carte simili per un determinato bucket
+  Future<List<CommanderCard>> fetchFunctionalEquivalentsForBucket({
+    required DeckBucket bucket,
+    required List<String> colorIdentity,
+  }) async {
+    final idStr = colorIdentity.isNotEmpty ? colorIdentity.join('').toLowerCase() : 'c';
+    String tagPart;
+
+    switch (bucket) {
+      case DeckBucket.lands:
+        tagPart = 'is:land -is:digital';
+        break;
+      case DeckBucket.ramp:
+        tagPart = '(otag:ramp or otag:mana-rock or otag:mana-dork) -is:digital';
+        break;
+      case DeckBucket.draw:
+        tagPart = '(otag:draw or otag:card-advantage) -is:digital';
+        break;
+      case DeckBucket.spotRemoval:
+        tagPart = '(otag:removal or otag:spot-removal or otag:counterspell) -is:digital';
+        break;
+      case DeckBucket.boardWipe:
+        tagPart = '(otag:board-wipe or otag:wrath) -is:digital';
+        break;
+      case DeckBucket.protection:
+        tagPart = '(otag:protection or otag:hexproof-granter or otag:indestructible-granter) -is:digital';
+        break;
+      case DeckBucket.recursion:
+        tagPart = '(otag:recursion or otag:reanimation) -is:digital';
+        break;
+      case DeckBucket.tutors:
+        tagPart = 'otag:tutor -is:digital';
+        break;
+      case DeckBucket.wincons:
+        tagPart = '(otag:finisher or otag:overrun or otag:alternate-win-condition) -is:digital';
+        break;
+      case DeckBucket.synergyEngine:
+        tagPart = '-is:land -is:digital';
+        break;
+    }
+
+    final query = 'id<=$idStr $tagPart';
+    final encoded = Uri.encodeComponent(query);
+    final uri = Uri.parse('https://api.scryfall.com/cards/search?q=$encoded&order=edhrec');
+
+    try {
+      final response = await _client.get(uri);
+      if (response.statusCode != 200) return [];
+      final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final list = (data['data'] as List<dynamic>?) ?? [];
+      return list.map((item) {
+        final card = _parseCard(item as Map<String, dynamic>);
+        return card.copyWith(bucket: bucket);
+      }).toList();
+    } catch (_) {
+      return [];
     }
   }
 

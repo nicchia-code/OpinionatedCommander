@@ -53,7 +53,7 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
   Widget build(BuildContext context) {
     final activeBucket = ref.watch(selectedBucketProvider);
     final deck = ref.watch(deckProvider);
-    final edhrecAsync = ref.watch(edhrecRecommendationsProvider);
+    final suggestionsAsync = ref.watch(bucketSuggestionsProvider(activeBucket));
 
     return Container(
       decoration: const BoxDecoration(
@@ -143,19 +143,19 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
           Expanded(
             child: _isScryfallMode
                 ? _buildScryfallList(deck, activeBucket)
-                : _buildEdhrecList(edhrecAsync, deck, activeBucket),
+                : _buildSuggestionsList(suggestionsAsync, deck, activeBucket),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEdhrecList(
-    AsyncValue<List<CommanderCard>> edhrecAsync,
+  Widget _buildSuggestionsList(
+    AsyncValue<List<CommanderCard>> suggestionsAsync,
     dynamic deck,
     DeckBucket activeBucket,
   ) {
-    return edhrecAsync.when(
+    return suggestionsAsync.when(
       loading: () => const Center(
         child: SizedBox(
           width: 20,
@@ -164,14 +164,12 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
         ),
       ),
       error: (err, _) => Center(
-        child: Text('Errore EDHREC: $err', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        child: Text('Errore suggerimenti: $err', style: const TextStyle(color: Colors.white38, fontSize: 12)),
       ),
       data: (allCards) {
         final query = _searchCtrl.text.trim().toLowerCase();
         final filtered = allCards.where((c) {
-          final matchesQuery = query.isEmpty || c.name.toLowerCase().contains(query);
-          final matchesBucket = query.isNotEmpty || (c.bucket == activeBucket);
-          return matchesQuery && matchesBucket;
+          return query.isEmpty || c.name.toLowerCase().contains(query);
         }).toList();
 
         if (filtered.isEmpty) {

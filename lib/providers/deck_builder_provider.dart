@@ -189,3 +189,78 @@ final edhrecRecommendationsProvider = FutureProvider<List<CommanderCard>>((ref) 
   final edhrec = ref.watch(edhrecServiceProvider);
   return await edhrec.fetchCommanderRecommendations(deck.commander!.name);
 });
+
+/// Suggerimenti arricchiti per il bucket selezionato (EDHREC + Scryfall Functional Equivalents + Deck Synergy Sorter)
+final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, DeckBucket>((ref, bucket) async {
+  final deck = ref.watch(deckProvider);
+  if (deck.commander == null) return [];
+
+  final edhrecAsync = await ref.watch(edhrecRecommendationsProvider.future);
+  final edhrecCardsForBucket = edhrecAsync.where((c) => c.bucket == bucket).toList();
+
+  final scryfall = ref.watch(scryfallServiceProvider);
+  final scryfallCards = await scryfall.fetchFunctionalEquivalentsForBucket(
+    bucket: bucket,
+    colorIdentity: deck.commander!.colorIdentity,
+  );
+
+  // Unione senza duplicati: EDHREC mantiene la priorità con i dati di sinergia
+  final seenNames = <String>{};
+  final merged = <CommanderCard>[];
+
+  for (final card in edhrecCardsForBucket) {
+    seenNames.add(card.name.toLowerCase());
+    merged.add(card);
+  }
+
+  for (final card in scryfallCards) {
+    if (!seenNames.contains(card.name.toLowerCase())) {
+      seenNames.add(card.name.toLowerCase());
+      merged.add(card);
+    }
+  }
+
+  // Cross-deck synergy analysis:
+  // Estrai i temi e keyword predominanti dal mazzo attuale (commander + carte già aggiunte)
+  final deckKeywords = <String, int>{};
+  final allDeckTexts = [
+    if (deck.commander != null) '${deck.commander!.name} ${deck.commander!.typeLine} ${deck.commander!.oracleText}',
+    for (final c in deck.cards) '${c.name} ${c.typeLine} ${c.oracleText}',
+  ].join(' ').toLowerCase();
+
+  const candidateKeywords = [
+    'token', 'tokens', '+1/+1', 'counter', 'counters', 'sacrifice', 'sacrifices',
+    'graveyard', 'dies', 'artifact', 'artifacts', 'enchantment', 'enchantments',
+    'draw', 'discard', 'flying', 'trample', 'lifelink', 'deathtouch', 'haste',
+    'goblin', 'goblins', 'elf', 'elves', 'dragon', 'dragons', 'zombie', 'zombies',
+    'vampire', 'vampires', 'phyrexian', 'wizard', 'spellslinger', 'instant', 'sorcery'
+  ];
+
+  for (final kw in candidateKeywords) {
+    final count = RegExp(r'\b' + RegExp.escape(kw) + r'\b').allMatches(allDeckTexts).length;
+    if (count > 0) {
+      deckKeywords[kw] = count;
+    }
+  }
+
+  // Calcola punteggio di pertinenza e ordina le carte
+  merged.sort((a, b) {
+    double scoreA = (a.edhrecSynergy ?? 0.0) * 10.0;
+    double scoreB = (b.edhrecSynergy ?? 0.0) * 10.0;
+
+    if (a.edhrecInclusion != null) scoreA += a.edhrecInclusion! * 3.0;
+    if (b.edhrecInclusion != null) scoreB += b.edhrecInclusion! * 3.0;
+
+    final textA = '${a.name} ${a.typeLine} ${a.oracleText}'.toLowerCase();
+    final textB = '${b.name} ${b.typeLine} ${b.oracleText}'.toLowerCase();
+
+    for (final entry in deckKeywords.entries) {
+      if (textA.contains(entry.key)) scoreA += (entry.value * 0.5);
+      if (textB.contains(entry.key)) scoreB += (entry.value * 0.5);
+    }
+
+    return scoreB.compareTo(scoreA);
+  });
+
+  return merged;
+});
