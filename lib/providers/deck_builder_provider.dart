@@ -14,6 +14,19 @@ final edhrecServiceProvider = Provider<EdhrecService>((ref) => EdhrecService());
 final scryfallServiceProvider = Provider<ScryfallService>((ref) => ScryfallService());
 final deckStorageServiceProvider = Provider<DeckStorageService>((ref) => DeckStorageService());
 
+/// Modalità di ordinamento dei suggerimenti nell'explorer
+enum ExplorerSortMode {
+  edhrecDistance('Affinità EDHREC'),
+  priceAsc('Prezzo € ↗'),
+  priceDesc('Prezzo € ↘'),
+  cmc('Mana Value');
+
+  final String label;
+  const ExplorerSortMode(this.label);
+}
+
+final explorerSortModeProvider = StateProvider<ExplorerSortMode>((ref) => ExplorerSortMode.edhrecDistance);
+
 /// Bucket attualmente selezionato nel pannello di sinistra per filtrare l'explorer a destra
 final selectedBucketProvider = StateProvider<DeckBucket>((ref) => DeckBucket.synergyEngine);
 
@@ -199,16 +212,39 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
   final edhrecCardsForBucket = edhrecAsync.where((c) => c.bucket == bucket).toList();
 
   final scryfall = ref.watch(scryfallServiceProvider);
+
+  // Recupera prezzi e dettagli completi per le carte EDHREC di questo bucket in batch da Scryfall
+  final edhrecIds = edhrecCardsForBucket.map((c) => c.id).where((id) => id.isNotEmpty).toList();
+  final scryfallBatch = await scryfall.fetchCardsByIds(edhrecIds);
+
+  final enrichedEdhrecCards = edhrecCardsForBucket.map((c) {
+    final details = scryfallBatch[c.id];
+    if (details != null) {
+      return c.copyWith(
+        manaCost: details.manaCost.isNotEmpty ? details.manaCost : c.manaCost,
+        cmc: details.cmc > 0 ? details.cmc : c.cmc,
+        typeLine: details.typeLine.isNotEmpty ? details.typeLine : c.typeLine,
+        oracleText: details.oracleText.isNotEmpty ? details.oracleText : c.oracleText,
+        priceEur: details.priceEur ?? c.priceEur,
+        priceUsd: details.priceUsd ?? c.priceUsd,
+        colors: details.colors.isNotEmpty ? details.colors : c.colors,
+        colorIdentity: details.colorIdentity.isNotEmpty ? details.colorIdentity : c.colorIdentity,
+      );
+    }
+    return c;
+  }).toList();
+
+  // Equivalenti funzionali da Scryfall per espandere lo slot se EDHREC ha pochi suggerimenti
   final scryfallCards = await scryfall.fetchFunctionalEquivalentsForBucket(
     bucket: bucket,
     colorIdentity: deck.commander!.colorIdentity,
   );
 
-  // Unione senza duplicati: EDHREC mantiene la priorità con i dati di sinergia
+  // Unione deduplicata mantenendo la priorità delle metriche EDHREC
   final seenNames = <String>{};
   final merged = <CommanderCard>[];
 
-  for (final card in edhrecCardsForBucket) {
+  for (final card in enrichedEdhrecCards) {
     seenNames.add(card.name.toLowerCase());
     merged.add(card);
   }
@@ -220,9 +256,9 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
     }
   }
 
-  // Profilo lessicale e meccanico delle carte EDHREC per questo comandante
+  // Profilo lessicale e meccanico dell'insieme raccomandato da EDHREC per questo comandante
   final edhrecVocab = <String>{};
-  for (final card in edhrecAsync) {
+  for (final card in enrichedEdhrecCards) {
     final tokens = '${card.name} ${card.typeLine} ${card.oracleText}'
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
@@ -231,7 +267,17 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
     edhrecVocab.addAll(tokens);
   }
 
-  // Cross-deck synergy analysis: parole chiave dal mazzo attuale
+  // Se edhrecVocab è scarno, includi anche i token del comandante
+  if (deck.commander != null) {
+    final cmdTokens = '${deck.commander!.name} ${deck.commander!.typeLine} ${deck.commander!.oracleText}'
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 3);
+    edhrecVocab.addAll(cmdTokens);
+  }
+
+  // Cross-deck synergy analysis: frequenza temi e keyword attive nel mazzo corrente
   final deckKeywords = <String, int>{};
   final allDeckTexts = [
     if (deck.commander != null) '${deck.commander!.name} ${deck.commander!.typeLine} ${deck.commander!.oracleText}',
@@ -253,7 +299,7 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
     }
   }
 
-  // Calcola punteggio di similarità/distanza con EDHREC per ogni carta
+  // Calcolo deterministico della distanza e del punteggio per ogni carta
   final scoredCards = merged.map((card) {
     final cardTokens = '${card.name} ${card.typeLine} ${card.oracleText}'
         .toLowerCase()
@@ -262,31 +308,65 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
         .where((t) => t.length >= 3)
         .toSet();
 
-    double similarity;
-    if (card.edhrecSynergy != null) {
-      // Se proviene da EDHREC, baseline alta + bonus sinergia/inclusione
-      similarity = 0.70 + (card.edhrecSynergy! * 0.20) + ((card.edhrecInclusion ?? 0.0) * 0.10);
-    } else {
-      // Misura distanza / sovrapposizione lessicale con l'insieme EDHREC
-      final overlap = cardTokens.intersection(edhrecVocab).length;
-      final ratio = edhrecVocab.isNotEmpty ? (overlap / (cardTokens.length + 3)).clamp(0.0, 1.0) : 0.0;
-      similarity = 0.40 + (ratio * 0.50);
-    }
-
-    // Bonus sinergia con il mazzo attuale
+    double deckSynergyBonus = 0.0;
     final cardFullText = '${card.name} ${card.typeLine} ${card.oracleText}'.toLowerCase();
     for (final entry in deckKeywords.entries) {
       if (cardFullText.contains(entry.key)) {
-        similarity += (entry.value * 0.03);
+        deckSynergyBonus += (entry.value.clamp(1, 3) * 0.03);
       }
     }
 
-    similarity = similarity.clamp(0.05, 0.99);
-    return card.copyWith(similarityScore: similarity);
+    double distance;
+    if (card.edhrecSynergy != null) {
+      // Carta ufficiale EDHREC: distanza minima modulata da sinergia e frequenza di inclusione
+      final synBonus = (card.edhrecSynergy! * 0.08);
+      final incBonus = ((card.edhrecInclusion ?? 0.0) * 0.04);
+      distance = (0.12 - synBonus - incBonus - deckSynergyBonus).clamp(0.01, 0.25);
+    } else {
+      // Equivalente funzionale Scryfall: distanza basata su sovrapposizione lessicale con l'insieme EDHREC
+      final overlap = cardTokens.intersection(edhrecVocab).length;
+      final jaccardRatio = edhrecVocab.isNotEmpty ? (overlap / (cardTokens.length + 3)).clamp(0.0, 1.0) : 0.0;
+      final jaccardDistance = 1.0 - jaccardRatio;
+
+      double cmcAdjustment = 0.0;
+      if (bucket == DeckBucket.ramp || bucket == DeckBucket.spotRemoval) {
+        if (card.cmc <= 2) cmcAdjustment = -0.04;
+        if (card.cmc > 4) cmcAdjustment = 0.06;
+      }
+
+      distance = (0.28 + (jaccardDistance * 0.42) - deckSynergyBonus + cmcAdjustment).clamp(0.18, 0.95);
+    }
+
+    final affinity = (1.0 - distance).clamp(0.05, 0.99);
+
+    return card.copyWith(
+      edhrecDistance: distance,
+      similarityScore: affinity,
+    );
   }).toList();
 
-  // Ordina per similarity score decrescente
-  scoredCards.sort((a, b) => (b.similarityScore ?? 0.0).compareTo(a.similarityScore ?? 0.0));
+  // Ordinamento configurabile secondo explorerSortModeProvider
+  final sortMode = ref.watch(explorerSortModeProvider);
+  scoredCards.sort((a, b) {
+    switch (sortMode) {
+      case ExplorerSortMode.edhrecDistance:
+        // Distanza EDHREC minore = carta più affine
+        return (a.edhrecDistance ?? 1.0).compareTo(b.edhrecDistance ?? 1.0);
+      case ExplorerSortMode.priceAsc:
+        // Più economica prima; le carte senza prezzo finiscono in fondo
+        final pa = a.primaryNumericPrice ?? 9999.0;
+        final pb = b.primaryNumericPrice ?? 9999.0;
+        return pa.compareTo(pb);
+      case ExplorerSortMode.priceDesc:
+        // Più costosa prima
+        final pa = a.primaryNumericPrice ?? -1.0;
+        final pb = b.primaryNumericPrice ?? -1.0;
+        return pb.compareTo(pa);
+      case ExplorerSortMode.cmc:
+        // Mana value crescente
+        return a.cmc.compareTo(b.cmc);
+    }
+  });
 
   return scoredCards;
 });

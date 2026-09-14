@@ -72,6 +72,31 @@ class CommanderDeck {
     return totalCmc / nonLands.length;
   }
 
+  /// Costo totale stimato in EUR (carte nel mazzo + comandante)
+  double get totalPriceEur {
+    double total = commander?.numericPriceEur ?? 0.0;
+    for (final c in cards) {
+      total += c.numericPriceEur ?? 0.0;
+    }
+    return total;
+  }
+
+  /// Costo totale stimato in USD (carte nel mazzo + comandante)
+  double get totalPriceUsd {
+    double total = commander?.numericPriceUsd ?? 0.0;
+    for (final c in cards) {
+      total += c.numericPriceUsd ?? 0.0;
+    }
+    return total;
+  }
+
+  /// Stringa prezzo stimato mazzo formattata (priorità EUR)
+  String get formattedTotalPrice {
+    if (totalPriceEur > 0) return '€${totalPriceEur.toStringAsFixed(2)}';
+    if (totalPriceUsd > 0) return '\$${totalPriceUsd.toStringAsFixed(2)}';
+    return '—';
+  }
+
   CommanderDeck copyWith({
     String? id,
     String? name,

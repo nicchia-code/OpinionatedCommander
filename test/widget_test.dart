@@ -147,4 +147,47 @@ void main() {
       expect(parsed[1].explicitBucket, DeckBucket.ramp);
     });
   });
+
+  group('Pricing e scoring per distanza EDHREC', () {
+    test('Calcolo prezzi numerici e formattazione EUR/USD', () {
+      const cardEur = CommanderCard(id: 'c1', name: 'Card 1', priceEur: '1.25');
+      expect(cardEur.numericPriceEur, 1.25);
+      expect(cardEur.formattedPrice, '€1.25');
+
+      const cardUsd = CommanderCard(id: 'c2', name: 'Card 2', priceUsd: '0.99');
+      expect(cardUsd.numericPriceUsd, 0.99);
+      expect(cardUsd.formattedPrice, '\$0.99');
+
+      final deck = CommanderDeck(
+        id: 'deck-price-test',
+        name: 'Price Test',
+        commander: const CommanderCard(id: 'cmd', name: 'Cmd', priceEur: '5.00', isCommander: true),
+        cards: [
+          const CommanderCard(id: 'c1', name: 'Card 1', priceEur: '2.50'),
+          const CommanderCard(id: 'c2', name: 'Card 2', priceEur: '1.50'),
+        ],
+        updatedAt: DateTime.now(),
+      );
+      expect(deck.totalPriceEur, 9.0);
+      expect(deck.formattedTotalPrice, '€9.00');
+    });
+
+    test('Scoring e affinità basati su distanza EDHREC', () {
+      // Carta EDHREC con distanza bassa (0.05) -> alta affinità (95%)
+      const edhrecCard = CommanderCard(
+        id: 'e1',
+        name: 'High Synergy',
+        edhrecDistance: 0.05,
+      );
+      expect(edhrecCard.calculatedAffinity, closeTo(0.95, 0.01));
+
+      // Carta lontana (distanza 0.60) -> affinità 40%
+      const distantCard = CommanderCard(
+        id: 'e2',
+        name: 'Distant Card',
+        edhrecDistance: 0.60,
+      );
+      expect(distantCard.calculatedAffinity, closeTo(0.40, 0.01));
+    });
+  });
 }

@@ -16,6 +16,7 @@ class CommanderCard {
   final String? priceEur;
   final String? priceUsd;
   final double? similarityScore;
+  final double? edhrecDistance;
   final DeckBucket? bucket;
   final bool isCommander;
 
@@ -35,6 +36,7 @@ class CommanderCard {
     this.priceEur,
     this.priceUsd,
     this.similarityScore,
+    this.edhrecDistance,
     this.bucket,
     this.isCommander = false,
   });
@@ -65,12 +67,21 @@ class CommanderCard {
         text.contains('put target') && text.contains('library');
   }
 
+  /// Valore numerico per calcoli e ordinamento prezzi
+  double? get numericPriceEur => priceEur != null ? double.tryParse(priceEur!) : null;
+  double? get numericPriceUsd => priceUsd != null ? double.tryParse(priceUsd!) : null;
+  double? get primaryNumericPrice => numericPriceEur ?? numericPriceUsd;
+
   /// Stringa prezzo formattata con preferenza EUR e fallback USD
   String? get formattedPrice {
     if (priceEur != null && priceEur!.isNotEmpty) return '€$priceEur';
     if (priceUsd != null && priceUsd!.isNotEmpty) return '\$$priceUsd';
     return null;
   }
+
+  /// Punteggio affinità 0.0 - 1.0 (calcolato come 1 - distance)
+  double get calculatedAffinity =>
+      similarityScore ?? (edhrecDistance != null ? (1.0 - edhrecDistance!).clamp(0.05, 0.99) : 0.5);
 
   CommanderCard copyWith({
     String? id,
@@ -88,6 +99,7 @@ class CommanderCard {
     String? priceEur,
     String? priceUsd,
     double? similarityScore,
+    double? edhrecDistance,
     DeckBucket? bucket,
     bool? isCommander,
   }) {
@@ -107,6 +119,7 @@ class CommanderCard {
       priceEur: priceEur ?? this.priceEur,
       priceUsd: priceUsd ?? this.priceUsd,
       similarityScore: similarityScore ?? this.similarityScore,
+      edhrecDistance: edhrecDistance ?? this.edhrecDistance,
       bucket: bucket ?? this.bucket,
       isCommander: isCommander ?? this.isCommander,
     );
@@ -129,6 +142,7 @@ class CommanderCard {
       'priceEur': priceEur,
       'priceUsd': priceUsd,
       'similarityScore': similarityScore,
+      'edhrecDistance': edhrecDistance,
       'bucket': bucket?.name,
       'isCommander': isCommander,
     };
@@ -151,6 +165,7 @@ class CommanderCard {
       priceEur: json['priceEur'] as String?,
       priceUsd: json['priceUsd'] as String?,
       similarityScore: (json['similarityScore'] as num?)?.toDouble(),
+      edhrecDistance: (json['edhrecDistance'] as num?)?.toDouble(),
       bucket: json['bucket'] != null
           ? DeckBucket.values.firstWhere(
               (b) => b.name == json['bucket'],

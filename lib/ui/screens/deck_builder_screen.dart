@@ -227,6 +227,35 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
           ],
         ),
         actions: [
+          // Totale prezzo stimato mazzo
+          if (deck.formattedTotalPrice != '—')
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.borderDark),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.sell_outlined, size: 12, color: Colors.white38),
+                    const SizedBox(width: 4),
+                    Text(
+                      deck.formattedTotalPrice,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Progresso conteggio discreto
           Center(
             child: Container(

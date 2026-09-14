@@ -134,6 +134,58 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
                     }
                   },
                 ),
+                if (!_isScryfallMode) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text(
+                        'Ordina:',
+                        style: TextStyle(fontSize: 11, color: Colors.white38),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: ExplorerSortMode.values.map((mode) {
+                              final activeSort = ref.watch(explorerSortModeProvider);
+                              final isSelected = mode == activeSort;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    ref.read(explorerSortModeProvider.notifier).state = mode;
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? Colors.white.withValues(alpha: 0.12)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: isSelected ? Colors.white24 : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      mode.label,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected ? Colors.white : Colors.white54,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -265,7 +317,7 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
                 ),
                 Row(
                   children: [
-                    if (card.edhrecSynergy != null)
+                    if (card.edhrecSynergy != null) ...[
                       Text(
                         '${card.edhrecSynergy! >= 0 ? '+' : ''}${(card.edhrecSynergy! * 100).toStringAsFixed(0)}% sinergia',
                         style: TextStyle(
@@ -273,40 +325,79 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
                           fontWeight: FontWeight.bold,
                           color: card.edhrecSynergy! >= 0 ? AppTheme.accentGreen : Colors.white38,
                         ),
-                      )
-                    else if (card.similarityScore != null)
+                      ),
+                      const Text(
+                        ' • ',
+                        style: TextStyle(fontSize: 10, color: Colors.white24),
+                      ),
                       Text(
-                        '${(card.similarityScore! * 100).toStringAsFixed(0)}% affinità',
+                        '${(card.calculatedAffinity * 100).toStringAsFixed(0)}% affinità',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.accentBlue,
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        '${(card.calculatedAffinity * 100).toStringAsFixed(0)}% affinità',
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: AppTheme.accentBlue,
                         ),
                       ),
+                      if (card.edhrecDistance != null) ...[
+                        const Text(
+                          ' • ',
+                          style: TextStyle(fontSize: 10, color: Colors.white24),
+                        ),
+                        Text(
+                          'dist. ${card.edhrecDistance!.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 10, color: Colors.white38),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ],
             ),
           ),
 
-          // Badge Prezzo (EUR / USD)
-          if (card.formattedPrice != null)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                card.formattedPrice!,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
+          // Badge Prezzo (EUR / USD) in evidenza prima dell'aggiunta
+          Builder(
+            builder: (context) {
+              final priceEur = card.numericPriceEur;
+              Color priceBg = Colors.white.withValues(alpha: 0.08);
+              Color priceTextColor = Colors.white70;
+              if (priceEur != null) {
+                if (priceEur < 1.0) {
+                  priceBg = AppTheme.accentGreen.withValues(alpha: 0.16);
+                  priceTextColor = AppTheme.accentGreen;
+                } else if (priceEur > 7.0) {
+                  priceBg = Colors.amber.withValues(alpha: 0.16);
+                  priceTextColor = Colors.amber.shade200;
+                }
+              }
+
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: priceBg,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: priceTextColor.withValues(alpha: 0.3)),
                 ),
-              ),
-            ),
+                child: Text(
+                  card.formattedPrice ?? '—',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: priceTextColor,
+                  ),
+                ),
+              );
+            },
+          ),
 
           // Pulsante discreto di aggiunta
           if (isInDeck)

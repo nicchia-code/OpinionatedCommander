@@ -48,8 +48,59 @@ class ScryfallService {
     }
   }
 
+  final Map<String, CommanderCard> _cardCache = {};
+
+  /// Recupera carte in blocco da Scryfall per ID (fino a 75 per batch /cards/collection)
+  Future<Map<String, CommanderCard>> fetchCardsByIds(List<String> ids) async {
+    final validIds = ids.where((id) => id.isNotEmpty).toSet().toList();
+    if (validIds.isEmpty) return {};
+
+    final missingIds = validIds.where((id) => !_cardCache.containsKey(id)).toList();
+
+    // Elabora a blocchi di 75 (limite Scryfall collection API)
+    for (int i = 0; i < missingIds.length; i += 75) {
+      final chunk = missingIds.sublist(i, i + 75 > missingIds.length ? missingIds.length : i + 75);
+      final uri = Uri.parse('https://api.scryfall.com/cards/collection');
+      final body = json.encode({
+        'identifiers': chunk.map((id) => {'id': id}).toList(),
+      });
+
+      try {
+        final response = await _client.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        );
+        if (response.statusCode == 200) {
+          final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          final list = (data['data'] as List<dynamic>?) ?? [];
+          for (final item in list) {
+            final card = _parseCard(item as Map<String, dynamic>);
+            _cardCache[card.id] = card;
+            _cardCache[card.name.toLowerCase()] = card;
+          }
+        }
+      } catch (_) {
+        // Fallback silenzioso su timeout/offline
+      }
+    }
+
+    final result = <String, CommanderCard>{};
+    for (final id in validIds) {
+      if (_cardCache.containsKey(id)) {
+        result[id] = _cardCache[id]!;
+      }
+    }
+    return result;
+  }
+
   /// Recupera dettagli completi di una carta tramite nome o Scryfall ID
   Future<CommanderCard?> getCardByName(String name) async {
+    final lowerName = name.toLowerCase();
+    if (_cardCache.containsKey(lowerName)) {
+      return _cardCache[lowerName];
+    }
+
     final encoded = Uri.encodeComponent(name);
     final uri = Uri.parse('https://api.scryfall.com/cards/named?exact=$encoded');
 
@@ -57,7 +108,10 @@ class ScryfallService {
       final response = await _client.get(uri);
       if (response.statusCode != 200) return null;
       final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      return _parseCard(data);
+      final card = _parseCard(data);
+      _cardCache[card.id] = card;
+      _cardCache[lowerName] = card;
+      return card;
     } catch (_) {
       return null;
     }
