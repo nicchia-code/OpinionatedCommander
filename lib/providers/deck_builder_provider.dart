@@ -131,6 +131,57 @@ class DeckNotifier extends StateNotifier<CommanderDeck> {
 
   void loadDeck(CommanderDeck loadedDeck) {
     state = loadedDeck;
+    hydrateMissingPrices();
+  }
+
+  /// Recupera in background i prezzi Scryfall per le carte pre-esistenti prive di prezzo
+  Future<void> hydrateMissingPrices() async {
+    final missingCards = state.cards.where((c) => c.priceEur == null && c.priceUsd == null).toList();
+    final missingCmd = state.commander != null && state.commander!.priceEur == null && state.commander!.priceUsd == null;
+
+    if (missingCards.isEmpty && !missingCmd) return;
+
+    final ids = [
+      if (missingCmd) state.commander!.id,
+      for (final c in missingCards) c.id,
+    ].where((id) => id.isNotEmpty).toList();
+
+    if (ids.isEmpty) return;
+
+    final details = await _scryfall.fetchCardsByIds(ids);
+
+    var updatedCmd = state.commander;
+    if (updatedCmd != null && details.containsKey(updatedCmd.id)) {
+      final d = details[updatedCmd.id]!;
+      updatedCmd = updatedCmd.copyWith(
+        priceEur: d.priceEur,
+        priceUsd: d.priceUsd,
+        imageUrl: d.imageUrl ?? updatedCmd.imageUrl,
+        artCropUrl: d.artCropUrl ?? updatedCmd.artCropUrl,
+      );
+    }
+
+    final updatedCards = state.cards.map((c) {
+      if (details.containsKey(c.id)) {
+        final d = details[c.id]!;
+        return c.copyWith(
+          priceEur: d.priceEur,
+          priceUsd: d.priceUsd,
+          imageUrl: d.imageUrl ?? c.imageUrl,
+          artCropUrl: d.artCropUrl ?? c.artCropUrl,
+          oracleText: d.oracleText.isNotEmpty ? d.oracleText : c.oracleText,
+          typeLine: d.typeLine.isNotEmpty ? d.typeLine : c.typeLine,
+        );
+      }
+      return c;
+    }).toList();
+
+    state = state.copyWith(
+      commander: updatedCmd,
+      cards: updatedCards,
+      updatedAt: DateTime.now(),
+    );
+    await _storage.saveDeck(state);
   }
 
   /// Importazione testo standard MTG
@@ -195,12 +246,40 @@ final guardrailReportProvider = Provider<GuardrailReport>((ref) {
   return GuardrailReport.fromDeck(deck);
 });
 
-/// Raccomandazioni EDHREC per il comandante corrente
+/// Raccomandazioni EDHREC per il comandante corrente arricchite con Scryfall (prezzi, testo, ruoli)
 final edhrecRecommendationsProvider = FutureProvider<List<CommanderCard>>((ref) async {
   final deck = ref.watch(deckProvider);
   if (deck.commander == null) return [];
   final edhrec = ref.watch(edhrecServiceProvider);
-  return await edhrec.fetchCommanderRecommendations(deck.commander!.name);
+  final rawCards = await edhrec.fetchCommanderRecommendations(deck.commander!.name);
+  if (rawCards.isEmpty) return [];
+
+  // Batch enrichment Scryfall: prezzi EUR/USD reali e testo completo per TUTTE le carte EDHREC
+  final scryfall = ref.watch(scryfallServiceProvider);
+  final allIds = rawCards.map((c) => c.id).where((id) => id.isNotEmpty).toList();
+  final detailsMap = await scryfall.fetchCardsByIds(allIds);
+
+  return rawCards.map((c) {
+    final details = detailsMap[c.id];
+    if (details != null) {
+      final enriched = c.copyWith(
+        manaCost: details.manaCost.isNotEmpty ? details.manaCost : c.manaCost,
+        cmc: details.cmc > 0 ? details.cmc : c.cmc,
+        typeLine: details.typeLine.isNotEmpty ? details.typeLine : c.typeLine,
+        oracleText: details.oracleText.isNotEmpty ? details.oracleText : c.oracleText,
+        imageUrl: details.imageUrl ?? c.imageUrl,
+        artCropUrl: details.artCropUrl ?? c.artCropUrl,
+        priceEur: details.priceEur ?? c.priceEur,
+        priceUsd: details.priceUsd ?? c.priceUsd,
+        colors: details.colors.isNotEmpty ? details.colors : c.colors,
+        colorIdentity: details.colorIdentity.isNotEmpty ? details.colorIdentity : c.colorIdentity,
+      );
+      // Ri-classifica con precisione tramite Oracle text e types completi
+      final role = CardClassifier.classify(enriched);
+      return enriched.copyWith(bucket: role);
+    }
+    return c;
+  }).toList();
 });
 
 /// Suggerimenti arricchiti per il bucket selezionato (EDHREC + Scryfall Functional Equivalents + Deck Synergy Sorter)
@@ -213,27 +292,6 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
 
   final scryfall = ref.watch(scryfallServiceProvider);
 
-  // Recupera prezzi e dettagli completi per le carte EDHREC di questo bucket in batch da Scryfall
-  final edhrecIds = edhrecCardsForBucket.map((c) => c.id).where((id) => id.isNotEmpty).toList();
-  final scryfallBatch = await scryfall.fetchCardsByIds(edhrecIds);
-
-  final enrichedEdhrecCards = edhrecCardsForBucket.map((c) {
-    final details = scryfallBatch[c.id];
-    if (details != null) {
-      return c.copyWith(
-        manaCost: details.manaCost.isNotEmpty ? details.manaCost : c.manaCost,
-        cmc: details.cmc > 0 ? details.cmc : c.cmc,
-        typeLine: details.typeLine.isNotEmpty ? details.typeLine : c.typeLine,
-        oracleText: details.oracleText.isNotEmpty ? details.oracleText : c.oracleText,
-        priceEur: details.priceEur ?? c.priceEur,
-        priceUsd: details.priceUsd ?? c.priceUsd,
-        colors: details.colors.isNotEmpty ? details.colors : c.colors,
-        colorIdentity: details.colorIdentity.isNotEmpty ? details.colorIdentity : c.colorIdentity,
-      );
-    }
-    return c;
-  }).toList();
-
   // Equivalenti funzionali da Scryfall per espandere lo slot se EDHREC ha pochi suggerimenti
   final scryfallCards = await scryfall.fetchFunctionalEquivalentsForBucket(
     bucket: bucket,
@@ -244,7 +302,7 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
   final seenNames = <String>{};
   final merged = <CommanderCard>[];
 
-  for (final card in enrichedEdhrecCards) {
+  for (final card in edhrecCardsForBucket) {
     seenNames.add(card.name.toLowerCase());
     merged.add(card);
   }
@@ -258,7 +316,7 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
 
   // Profilo lessicale e meccanico dell'insieme raccomandato da EDHREC per questo comandante
   final edhrecVocab = <String>{};
-  for (final card in enrichedEdhrecCards) {
+  for (final card in edhrecAsync) {
     final tokens = '${card.name} ${card.typeLine} ${card.oracleText}'
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')

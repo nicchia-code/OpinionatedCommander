@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/commander_card.dart';
 import '../../models/deck_bucket.dart';
 import '../theme/app_theme.dart';
+import 'card_hover_preview.dart';
 
 class BucketCardTile extends StatelessWidget {
   final CommanderCard card;
@@ -17,9 +18,8 @@ class BucketCardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: card.typeLine,
-      waitDuration: const Duration(milliseconds: 500),
+    return CardHoverTarget(
+      card: card,
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

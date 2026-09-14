@@ -6,6 +6,7 @@ import '../../models/deck_bucket.dart';
 import '../../providers/deck_builder_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bucket_card_tile.dart';
+import '../widgets/card_hover_preview.dart';
 import '../widgets/edhrec_explorer_panel.dart';
 import '../widgets/guardrail_audit_dialog.dart';
 import '../widgets/import_export_dialog.dart';
@@ -21,6 +22,14 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
   final TextEditingController _commanderSearchCtrl = TextEditingController();
   List<CommanderCard> _commanderSearchResults = [];
   bool _isSearchingCommander = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(deckProvider.notifier).hydrateMissingPrices();
+    });
+  }
 
   @override
   void dispose() {
@@ -57,136 +66,158 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
     if (deck.commander == null) {
       return Scaffold(
         backgroundColor: AppTheme.bgDark,
-        body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 540),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'OpinionatedCommander',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Costruzione mazzi guidata a slot rigidi (BASE.md) e sinergie EDHREC.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.white54),
-                  ),
-                  const SizedBox(height: 36),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 540),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'OpinionatedCommander',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Costruzione mazzi guidata a slot rigidi (BASE.md) e sinergie EDHREC.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.white54),
+                      ),
+                      const SizedBox(height: 36),
 
-                  // Search bar comandante
-                  TextField(
-                    controller: _commanderSearchCtrl,
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 15, color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Cerca comandante (es. Atraxa, Krenko, Urza)...',
-                      hintStyle: const TextStyle(color: Colors.white38),
-                      prefixIcon: const Icon(Icons.search, color: Colors.white38),
-                      suffixIcon: _isSearchingCommander
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54),
-                              ),
-                            )
-                          : (_commanderSearchCtrl.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18, color: Colors.white38),
-                                  onPressed: () {
-                                    _commanderSearchCtrl.clear();
-                                    _searchCommanders('');
-                                  },
+                      // Search bar comandante
+                      TextField(
+                        controller: _commanderSearchCtrl,
+                        autofocus: true,
+                        style: const TextStyle(fontSize: 15, color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Cerca comandante (es. Atraxa, Krenko, Urza)...',
+                          hintStyle: const TextStyle(color: Colors.white38),
+                          prefixIcon: const Icon(Icons.search, color: Colors.white38),
+                          suffixIcon: _isSearchingCommander
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54),
+                                  ),
                                 )
-                              : null),
-                      filled: true,
-                      fillColor: AppTheme.surfaceDark,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppTheme.borderDark),
+                              : (_commanderSearchCtrl.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18, color: Colors.white38),
+                                      onPressed: () {
+                                        _commanderSearchCtrl.clear();
+                                        _searchCommanders('');
+                                      },
+                                    )
+                                  : null),
+                          filled: true,
+                          fillColor: AppTheme.surfaceDark,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppTheme.borderDark),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppTheme.borderDark),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.white54),
+                          ),
+                        ),
+                        onChanged: _searchCommanders,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppTheme.borderDark),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    onChanged: _searchCommanders,
-                  ),
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                  // Risultati ricerca
-                  if (_commanderSearchResults.isNotEmpty)
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 320),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceDark,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.borderDark),
-                      ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: _commanderSearchResults.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1, color: AppTheme.borderDark),
-                        itemBuilder: (context, i) {
-                          final card = _commanderSearchResults[i];
-                          return ListTile(
-                            dense: true,
-                            leading: card.artCropUrl != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      card.artCropUrl!,
-                                      width: 40,
-                                      height: 30,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : const Icon(Icons.shield, size: 20, color: Colors.white38),
-                            title: Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
-                            subtitle: Text('${card.manaCost} • ${card.typeLine}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
-                            onTap: () {
-                              ref.read(deckProvider.notifier).setCommander(card);
+                      // Risultati ricerca
+                      if (_commanderSearchResults.isNotEmpty)
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 320),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceDark,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.borderDark),
+                          ),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _commanderSearchResults.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1, color: AppTheme.borderDark),
+                            itemBuilder: (context, i) {
+                              final card = _commanderSearchResults[i];
+                              return CardHoverTarget(
+                                card: card,
+                                child: ListTile(
+                                  dense: true,
+                                  leading: card.artCropUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: Image.network(
+                                            card.artCropUrl!,
+                                            width: 40,
+                                            height: 30,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        )
+                                      : const Icon(Icons.shield, size: 20, color: Colors.white38),
+                                  title: Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+                                  subtitle: Text('${card.manaCost} • ${card.typeLine}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                                  trailing: card.formattedPrice != null
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            card.formattedPrice!,
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                                          ),
+                                        )
+                                      : null,
+                                  onTap: () {
+                                    ref.read(deckProvider.notifier).setCommander(card);
+                                  },
+                                ),
+                              );
                             },
-                          );
-                        },
-                      ),
-                    ),
+                          ),
+                        ),
 
-                  const SizedBox(height: 24),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => const ImportExportDialog(),
-                        );
-                      },
-                      icon: const Icon(Icons.file_upload_outlined, size: 16, color: Colors.white54),
-                      label: const Text('Oppure importa una decklist esistente', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                    ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => const ImportExportDialog(),
+                            );
+                          },
+                          icon: const Icon(Icons.file_upload_outlined, size: 16, color: Colors.white54),
+                          label: const Text('Oppure importa una decklist esistente', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+            const CardHoverOverlay(),
+          ],
         ),
       );
     }
@@ -201,30 +232,34 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
         titleSpacing: 16,
-        title: Row(
-          children: [
-            // Thumbnail Comandante
-            if (deck.commander?.artCropUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  deck.commander!.artCropUrl!,
-                  width: 32,
-                  height: 24,
-                  fit: BoxFit.cover,
+        title: CardHoverTarget(
+          card: deck.commander!,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thumbnail Comandante
+              if (deck.commander?.artCropUrl != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    deck.commander!.artCropUrl!,
+                    width: 32,
+                    height: 24,
+                    fit: BoxFit.cover,
+                  ),
                 ),
+              const SizedBox(width: 10),
+              Text(
+                deck.commander!.name,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-            const SizedBox(width: 10),
-            Text(
-              deck.commander!.name,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${deck.commander!.manaCost} • ${deck.archetype.name}',
-              style: const TextStyle(fontSize: 12, color: Colors.white38),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                '${deck.commander!.manaCost} • ${deck.archetype.name}',
+                style: const TextStyle(fontSize: 12, color: Colors.white38),
+              ),
+            ],
+          ),
         ),
         actions: [
           // Totale prezzo stimato mazzo
@@ -371,26 +406,34 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Pannello Sinistro: I 10 Bucket compatti e lineari
-          Expanded(
-            flex: 3,
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              children: [
-                for (final bucket in DeckBucket.values)
-                  _buildMinimalBucketSection(context, ref, deck, bucket, activeBucket == bucket),
-              ],
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Pannello Sinistro: I 10 Bucket compatti e lineari
+              Expanded(
+                flex: 3,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  children: [
+                    for (final bucket in DeckBucket.values)
+                      _buildMinimalBucketSection(context, ref, deck, bucket, activeBucket == bucket),
+                  ],
+                ),
+              ),
+
+              // Pannello Destro: Explorer EDHREC minimale per il bucket attivo
+              const Expanded(
+                flex: 2,
+                child: EdhrecExplorerPanel(),
+              ),
+            ],
           ),
 
-          // Pannello Destro: Explorer EDHREC minimale per il bucket attivo
-          const Expanded(
-            flex: 2,
-            child: EdhrecExplorerPanel(),
-          ),
+          // Popup anteprima carta ad alta risoluzione vicino al mouse
+          const CardHoverOverlay(),
         ],
       ),
     );

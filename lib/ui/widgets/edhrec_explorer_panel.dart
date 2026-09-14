@@ -4,6 +4,7 @@ import '../../models/commander_card.dart';
 import '../../models/deck_bucket.dart';
 import '../../providers/deck_builder_provider.dart';
 import '../theme/app_theme.dart';
+import 'card_hover_preview.dart';
 
 class EdhrecExplorerPanel extends ConsumerStatefulWidget {
   const EdhrecExplorerPanel({super.key});
@@ -282,12 +283,14 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
   }
 
   Widget _buildMinimalTile(CommanderCard card, bool isInDeck, DeckBucket activeBucket) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.bgDark,
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return CardHoverTarget(
+      card: card,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.bgDark,
+          borderRadius: BorderRadius.circular(6),
+        ),
       child: Row(
         children: [
           // Mini thumbnail
@@ -417,6 +420,7 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
             ),
         ],
       ),
+    ),
     );
   }
 }
