@@ -263,17 +263,50 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
                   style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (card.edhrecSynergy != null)
-                  Text(
-                    '${card.edhrecSynergy! >= 0 ? '+' : ''}${(card.edhrecSynergy! * 100).toStringAsFixed(0)}% sinergia',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: card.edhrecSynergy! >= 0 ? AppTheme.accentGreen : Colors.white38,
-                    ),
-                  ),
+                Row(
+                  children: [
+                    if (card.edhrecSynergy != null)
+                      Text(
+                        '${card.edhrecSynergy! >= 0 ? '+' : ''}${(card.edhrecSynergy! * 100).toStringAsFixed(0)}% sinergia',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: card.edhrecSynergy! >= 0 ? AppTheme.accentGreen : Colors.white38,
+                        ),
+                      )
+                    else if (card.similarityScore != null)
+                      Text(
+                        '${(card.similarityScore! * 100).toStringAsFixed(0)}% affinità',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.accentBlue,
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
+
+          // Badge Prezzo (EUR / USD)
+          if (card.formattedPrice != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                card.formattedPrice!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
 
           // Pulsante discreto di aggiunta
           if (isInDeck)

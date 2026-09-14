@@ -83,6 +83,21 @@ class BucketCardTile extends StatelessWidget {
                 ),
               ),
 
+            // Prezzo carta
+            if (card.formattedPrice != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  card.formattedPrice!,
+                  style: const TextStyle(fontSize: 10, color: Colors.white60),
+                ),
+              ),
+
             // Menu per spostamento rapido di bucket
             PopupMenuButton<DeckBucket>(
               icon: const Icon(Icons.swap_horiz, size: 16, color: Colors.white54),

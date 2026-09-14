@@ -13,6 +13,9 @@ class CommanderCard {
   final String? artCropUrl;
   final double? edhrecSynergy;
   final double? edhrecInclusion;
+  final String? priceEur;
+  final String? priceUsd;
+  final double? similarityScore;
   final DeckBucket? bucket;
   final bool isCommander;
 
@@ -29,6 +32,9 @@ class CommanderCard {
     this.artCropUrl,
     this.edhrecSynergy,
     this.edhrecInclusion,
+    this.priceEur,
+    this.priceUsd,
+    this.similarityScore,
     this.bucket,
     this.isCommander = false,
   });
@@ -59,6 +65,13 @@ class CommanderCard {
         text.contains('put target') && text.contains('library');
   }
 
+  /// Stringa prezzo formattata con preferenza EUR e fallback USD
+  String? get formattedPrice {
+    if (priceEur != null && priceEur!.isNotEmpty) return '€$priceEur';
+    if (priceUsd != null && priceUsd!.isNotEmpty) return '\$$priceUsd';
+    return null;
+  }
+
   CommanderCard copyWith({
     String? id,
     String? name,
@@ -72,6 +85,9 @@ class CommanderCard {
     String? artCropUrl,
     double? edhrecSynergy,
     double? edhrecInclusion,
+    String? priceEur,
+    String? priceUsd,
+    double? similarityScore,
     DeckBucket? bucket,
     bool? isCommander,
   }) {
@@ -88,6 +104,9 @@ class CommanderCard {
       artCropUrl: artCropUrl ?? this.artCropUrl,
       edhrecSynergy: edhrecSynergy ?? this.edhrecSynergy,
       edhrecInclusion: edhrecInclusion ?? this.edhrecInclusion,
+      priceEur: priceEur ?? this.priceEur,
+      priceUsd: priceUsd ?? this.priceUsd,
+      similarityScore: similarityScore ?? this.similarityScore,
       bucket: bucket ?? this.bucket,
       isCommander: isCommander ?? this.isCommander,
     );
@@ -107,6 +126,9 @@ class CommanderCard {
       'artCropUrl': artCropUrl,
       'edhrecSynergy': edhrecSynergy,
       'edhrecInclusion': edhrecInclusion,
+      'priceEur': priceEur,
+      'priceUsd': priceUsd,
+      'similarityScore': similarityScore,
       'bucket': bucket?.name,
       'isCommander': isCommander,
     };
@@ -126,6 +148,9 @@ class CommanderCard {
       artCropUrl: json['artCropUrl'] as String?,
       edhrecSynergy: (json['edhrecSynergy'] as num?)?.toDouble(),
       edhrecInclusion: (json['edhrecInclusion'] as num?)?.toDouble(),
+      priceEur: json['priceEur'] as String?,
+      priceUsd: json['priceUsd'] as String?,
+      similarityScore: (json['similarityScore'] as num?)?.toDouble(),
       bucket: json['bucket'] != null
           ? DeckBucket.values.firstWhere(
               (b) => b.name == json['bucket'],

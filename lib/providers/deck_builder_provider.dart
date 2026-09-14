@@ -220,8 +220,18 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
     }
   }
 
-  // Cross-deck synergy analysis:
-  // Estrai i temi e keyword predominanti dal mazzo attuale (commander + carte già aggiunte)
+  // Profilo lessicale e meccanico delle carte EDHREC per questo comandante
+  final edhrecVocab = <String>{};
+  for (final card in edhrecAsync) {
+    final tokens = '${card.name} ${card.typeLine} ${card.oracleText}'
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 3);
+    edhrecVocab.addAll(tokens);
+  }
+
+  // Cross-deck synergy analysis: parole chiave dal mazzo attuale
   final deckKeywords = <String, int>{};
   final allDeckTexts = [
     if (deck.commander != null) '${deck.commander!.name} ${deck.commander!.typeLine} ${deck.commander!.oracleText}',
@@ -243,24 +253,40 @@ final bucketSuggestionsProvider = FutureProvider.family<List<CommanderCard>, Dec
     }
   }
 
-  // Calcola punteggio di pertinenza e ordina le carte
-  merged.sort((a, b) {
-    double scoreA = (a.edhrecSynergy ?? 0.0) * 10.0;
-    double scoreB = (b.edhrecSynergy ?? 0.0) * 10.0;
+  // Calcola punteggio di similarità/distanza con EDHREC per ogni carta
+  final scoredCards = merged.map((card) {
+    final cardTokens = '${card.name} ${card.typeLine} ${card.oracleText}'
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 3)
+        .toSet();
 
-    if (a.edhrecInclusion != null) scoreA += a.edhrecInclusion! * 3.0;
-    if (b.edhrecInclusion != null) scoreB += b.edhrecInclusion! * 3.0;
-
-    final textA = '${a.name} ${a.typeLine} ${a.oracleText}'.toLowerCase();
-    final textB = '${b.name} ${b.typeLine} ${b.oracleText}'.toLowerCase();
-
-    for (final entry in deckKeywords.entries) {
-      if (textA.contains(entry.key)) scoreA += (entry.value * 0.5);
-      if (textB.contains(entry.key)) scoreB += (entry.value * 0.5);
+    double similarity;
+    if (card.edhrecSynergy != null) {
+      // Se proviene da EDHREC, baseline alta + bonus sinergia/inclusione
+      similarity = 0.70 + (card.edhrecSynergy! * 0.20) + ((card.edhrecInclusion ?? 0.0) * 0.10);
+    } else {
+      // Misura distanza / sovrapposizione lessicale con l'insieme EDHREC
+      final overlap = cardTokens.intersection(edhrecVocab).length;
+      final ratio = edhrecVocab.isNotEmpty ? (overlap / (cardTokens.length + 3)).clamp(0.0, 1.0) : 0.0;
+      similarity = 0.40 + (ratio * 0.50);
     }
 
-    return scoreB.compareTo(scoreA);
-  });
+    // Bonus sinergia con il mazzo attuale
+    final cardFullText = '${card.name} ${card.typeLine} ${card.oracleText}'.toLowerCase();
+    for (final entry in deckKeywords.entries) {
+      if (cardFullText.contains(entry.key)) {
+        similarity += (entry.value * 0.03);
+      }
+    }
 
-  return merged;
+    similarity = similarity.clamp(0.05, 0.99);
+    return card.copyWith(similarityScore: similarity);
+  }).toList();
+
+  // Ordina per similarity score decrescente
+  scoredCards.sort((a, b) => (b.similarityScore ?? 0.0).compareTo(a.similarityScore ?? 0.0));
+
+  return scoredCards;
 });

@@ -146,6 +146,10 @@ class ScryfallService {
       }
     }
 
+    final prices = json['prices'] as Map<String, dynamic>?;
+    final priceEur = prices?['eur'] as String?;
+    final priceUsd = prices?['usd'] as String?;
+
     return CommanderCard(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
@@ -157,6 +161,8 @@ class ScryfallService {
       colorIdentity: (json['color_identity'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       imageUrl: imageUrl,
       artCropUrl: artCropUrl,
+      priceEur: priceEur,
+      priceUsd: priceUsd,
       isCommander: isCommander,
     );
   }
