@@ -283,27 +283,28 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
   }
 
   Widget _buildMinimalTile(CommanderCard card, bool isInDeck, DeckBucket activeBucket) {
-    return CardHoverTarget(
-      card: card,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.bgDark,
-          borderRadius: BorderRadius.circular(6),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.bgDark,
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Row(
         children: [
-          // Mini thumbnail
+          // Mini thumbnail con anteprima al passaggio del mouse solo sull'immagine
           if (card.artCropUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: Image.network(
-                card.artCropUrl!,
-                width: 32,
-                height: 24,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.style, size: 16, color: Colors.white24),
+            CardHoverTarget(
+              card: card,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Image.network(
+                  card.artCropUrl!,
+                  width: 32,
+                  height: 24,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.style, size: 16, color: Colors.white24),
+                ),
               ),
             ),
           const SizedBox(width: 8),
@@ -420,7 +421,6 @@ class _EdhrecExplorerPanelState extends ConsumerState<EdhrecExplorerPanel> {
             ),
         ],
       ),
-    ),
     );
   }
 }

@@ -18,21 +18,21 @@ class BucketCardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CardHoverTarget(
-      card: card,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.cardDark,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppTheme.borderDark),
-        ),
-        child: Row(
-          children: [
-            // Art crop preview
-            if (card.artCropUrl != null)
-              ClipRRect(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.cardDark,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.borderDark),
+      ),
+      child: Row(
+        children: [
+          // Art crop preview con hover target esclusivo sull'immagine
+          if (card.artCropUrl != null)
+            CardHoverTarget(
+              card: card,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: Image.network(
                   card.artCropUrl!,
@@ -42,18 +42,19 @@ class BucketCardTile extends StatelessWidget {
                   errorBuilder: (context, error, stackTrace) =>
                       const Icon(Icons.image_not_supported, size: 20),
                 ),
-              )
-            else
-              Container(
-                width: 36,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(Icons.style_outlined, size: 16, color: Colors.white38),
               ),
-            const SizedBox(width: 8),
+            )
+          else
+            Container(
+              width: 36,
+              height: 26,
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Icon(Icons.style_outlined, size: 16, color: Colors.white38),
+            ),
+          const SizedBox(width: 8),
 
             // Card name
             Expanded(
@@ -132,7 +133,6 @@ class BucketCardTile extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }

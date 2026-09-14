@@ -159,12 +159,12 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                                 const Divider(height: 1, color: AppTheme.borderDark),
                             itemBuilder: (context, i) {
                               final card = _commanderSearchResults[i];
-                              return CardHoverTarget(
-                                card: card,
-                                child: ListTile(
-                                  dense: true,
-                                  leading: card.artCropUrl != null
-                                      ? ClipRRect(
+                              return ListTile(
+                                dense: true,
+                                leading: card.artCropUrl != null
+                                    ? CardHoverTarget(
+                                        card: card,
+                                        child: ClipRRect(
                                           borderRadius: BorderRadius.circular(4),
                                           child: Image.network(
                                             card.artCropUrl!,
@@ -172,27 +172,27 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                                             height: 30,
                                             fit: BoxFit.cover,
                                           ),
-                                        )
-                                      : const Icon(Icons.shield, size: 20, color: Colors.white38),
-                                  title: Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
-                                  subtitle: Text('${card.manaCost} • ${card.typeLine}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
-                                  trailing: card.formattedPrice != null
-                                      ? Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            card.formattedPrice!,
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
-                                          ),
-                                        )
-                                      : null,
-                                  onTap: () {
-                                    ref.read(deckProvider.notifier).setCommander(card);
-                                  },
-                                ),
+                                        ),
+                                      )
+                                    : const Icon(Icons.shield, size: 20, color: Colors.white38),
+                                title: Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+                                subtitle: Text('${card.manaCost} • ${card.typeLine}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                                trailing: card.formattedPrice != null
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          card.formattedPrice!,
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                                        ),
+                                      )
+                                    : null,
+                                onTap: () {
+                                  ref.read(deckProvider.notifier).setCommander(card);
+                                },
                               );
                             },
                           ),
@@ -232,14 +232,14 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
         backgroundColor: AppTheme.bgDark,
         elevation: 0,
         titleSpacing: 16,
-        title: CardHoverTarget(
-          card: deck.commander!,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Thumbnail Comandante
-              if (deck.commander?.artCropUrl != null)
-                ClipRRect(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Thumbnail Comandante con hover target solo sull'immagine
+            if (deck.commander?.artCropUrl != null)
+              CardHoverTarget(
+                card: deck.commander!,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.network(
                     deck.commander!.artCropUrl!,
@@ -248,7 +248,8 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                     fit: BoxFit.cover,
                   ),
                 ),
-              const SizedBox(width: 10),
+              ),
+            const SizedBox(width: 10),
               Text(
                 deck.commander!.name,
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
@@ -260,7 +261,6 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
               ),
             ],
           ),
-        ),
         actions: [
           // Totale prezzo stimato mazzo
           if (deck.formattedTotalPrice != '—')
