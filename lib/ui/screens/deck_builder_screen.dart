@@ -1,352 +1,373 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/archetype.dart';
+import '../../models/commander_card.dart';
 import '../../models/deck_bucket.dart';
 import '../../providers/deck_builder_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bucket_card_tile.dart';
-import '../widgets/commander_selector_dialog.dart';
 import '../widgets/edhrec_explorer_panel.dart';
 import '../widgets/guardrail_audit_dialog.dart';
-import '../widgets/guardrails_bar.dart';
 import '../widgets/import_export_dialog.dart';
-import '../widgets/mana_curve_chart.dart';
 
-class DeckBuilderScreen extends ConsumerWidget {
+class DeckBuilderScreen extends ConsumerStatefulWidget {
   const DeckBuilderScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DeckBuilderScreen> createState() => _DeckBuilderScreenState();
+}
+
+class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
+  final TextEditingController _commanderSearchCtrl = TextEditingController();
+  List<CommanderCard> _commanderSearchResults = [];
+  bool _isSearchingCommander = false;
+
+  @override
+  void dispose() {
+    _commanderSearchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _searchCommanders(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _commanderSearchResults = [];
+        _isSearchingCommander = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearchingCommander = true);
+    final scryfall = ref.read(scryfallServiceProvider);
+    final results = await scryfall.searchCommanders(query);
+    if (mounted) {
+      setState(() {
+        _commanderSearchResults = results;
+        _isSearchingCommander = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final deck = ref.watch(deckProvider);
-    final report = ref.watch(guardrailReportProvider);
     final activeBucket = ref.watch(selectedBucketProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.auto_awesome, color: AppTheme.primaryGold, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'OpinionatedCommander',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ],
-        ),
-        actions: [
-          // Selettore Archetipo
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.cardDark,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.borderDark),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<Archetype>(
-                value: deck.archetype,
-                dropdownColor: AppTheme.surfaceDark,
-                style: const TextStyle(fontSize: 12, color: Colors.white),
-                icon: const Icon(Icons.arrow_drop_down, color: AppTheme.primaryGold),
-                onChanged: (val) {
-                  if (val != null) {
-                    ref.read(deckProvider.notifier).setArchetype(val);
-                  }
-                },
-                items: [
-                  for (final a in Archetype.values)
-                    DropdownMenuItem(
-                      value: a,
-                      child: Text('Archetipo: ${a.name}'),
+    // ZERO STATE: Se non c'è comandante, mostra una schermata minimalista con un unico focus
+    if (deck.commander == null) {
+      return Scaffold(
+        backgroundColor: AppTheme.bgDark,
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'OpinionatedCommander',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Costruzione mazzi guidata a slot rigidi (BASE.md) e sinergie EDHREC.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.white54),
+                  ),
+                  const SizedBox(height: 36),
+
+                  // Search bar comandante
+                  TextField(
+                    controller: _commanderSearchCtrl,
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 15, color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Cerca comandante (es. Atraxa, Krenko, Urza)...',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white38),
+                      suffixIcon: _isSearchingCommander
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54),
+                              ),
+                            )
+                          : (_commanderSearchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18, color: Colors.white38),
+                                  onPressed: () {
+                                    _commanderSearchCtrl.clear();
+                                    _searchCommanders('');
+                                  },
+                                )
+                              : null),
+                      filled: true,
+                      fillColor: AppTheme.surfaceDark,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppTheme.borderDark),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppTheme.borderDark),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Colors.white54),
+                      ),
+                    ),
+                    onChanged: _searchCommanders,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Risultati ricerca
+                  if (_commanderSearchResults.isNotEmpty)
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 320),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceDark,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderDark),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _commanderSearchResults.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppTheme.borderDark),
+                        itemBuilder: (context, i) {
+                          final card = _commanderSearchResults[i];
+                          return ListTile(
+                            dense: true,
+                            leading: card.artCropUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      card.artCropUrl!,
+                                      width: 40,
+                                      height: 30,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : const Icon(Icons.shield, size: 20, color: Colors.white38),
+                            title: Text(card.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+                            subtitle: Text('${card.manaCost} • ${card.typeLine}', style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                            onTap: () {
+                              ref.read(deckProvider.notifier).setCommander(card);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                  const SizedBox(height: 24),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => const ImportExportDialog(),
+                        );
+                      },
+                      icon: const Icon(Icons.file_upload_outlined, size: 16, color: Colors.white54),
+                      label: const Text('Oppure importa una decklist esistente', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+        ),
+      );
+    }
+
+    // BUILDER VIEW: Comandante scelto. Layout minimalista a 2 colonne pulito
+    final totalCards = deck.mainDeckCount;
+    final report = ref.watch(guardrailReportProvider);
+
+    return Scaffold(
+      backgroundColor: AppTheme.bgDark,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgDark,
+        elevation: 0,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            // Thumbnail Comandante
+            if (deck.commander?.artCropUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  deck.commander!.artCropUrl!,
+                  width: 32,
+                  height: 24,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            const SizedBox(width: 10),
+            Text(
+              deck.commander!.name,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${deck.commander!.manaCost} • ${deck.archetype.name}',
+              style: const TextStyle(fontSize: 12, color: Colors.white38),
+            ),
+          ],
+        ),
+        actions: [
+          // Progresso conteggio discreto
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: totalCards == 99 ? AppTheme.accentGreen.withValues(alpha: 0.2) : AppTheme.cardDark,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: totalCards == 99 ? AppTheme.accentGreen : AppTheme.borderDark),
+              ),
+              child: Text(
+                '$totalCards / 99',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: totalCards == 99 ? AppTheme.accentGreen : Colors.white70,
+                ),
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
 
-          // Auto-Fill Basic Lands button
-          ElevatedButton.icon(
+          // Pulsante Auto-Fill Terre Base
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high, size: 18, color: Colors.white70),
+            tooltip: 'Riempi Terre Base mancanti',
             onPressed: () {
               final added = ref.read(deckProvider.notifier).autoFillBasicLands();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    added > 0
-                        ? 'Aggiunte $added terre base proporzionali al mazzo!'
-                        : 'Quota terre già raggiunta (${deck.countInBucket(DeckBucket.lands)}/${deck.archetype.targetFor(DeckBucket.lands)}).',
+                  content: Text(added > 0 ? 'Aggiunte $added terre base proporzionali.' : 'Quota terre già raggiunta.'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+
+          // Menu Altre Azioni (Minimalista: raccoglie archetipo, audit, import/export e reset)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 20, color: Colors.white70),
+            tooltip: 'Opzioni mazzo',
+            onSelected: (action) {
+              if (action == 'audit') {
+                showDialog(
+                  context: context,
+                  builder: (_) => GuardrailAuditDialog(report: report),
+                );
+              } else if (action == 'import_export') {
+                showDialog(
+                  context: context,
+                  builder: (_) => const ImportExportDialog(),
+                );
+              } else if (action == 'change_commander') {
+                ref.read(deckProvider.notifier).clearDeck();
+              } else if (action.startsWith('archetype_')) {
+                final archName = action.replaceFirst('archetype_', '');
+                final arch = Archetype.values.firstWhere((a) => a.name == archName);
+                ref.read(deckProvider.notifier).setArchetype(arch);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                enabled: false,
+                child: Text('ARCHETIPO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38)),
+              ),
+              for (final a in Archetype.values)
+                PopupMenuItem(
+                  value: 'archetype_${a.name}',
+                  child: Row(
+                    children: [
+                      if (deck.archetype == a)
+                        const Icon(Icons.check, size: 14, color: AppTheme.primaryGold)
+                      else
+                        const SizedBox(width: 14),
+                      const SizedBox(width: 8),
+                      Text(a.name, style: const TextStyle(fontSize: 12)),
+                    ],
                   ),
-                  backgroundColor: added > 0 ? AppTheme.accentGreen : AppTheme.cardHover,
                 ),
-              );
-            },
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Riempi Terre Base', style: TextStyle(fontSize: 12)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.cardHover,
-              foregroundColor: AppTheme.accentBlue,
-              side: const BorderSide(color: AppTheme.borderDark),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Import/Export button
-          IconButton(
-            icon: const Icon(Icons.sync_alt, size: 20, color: Colors.white70),
-            tooltip: 'Importa / Esporta',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => const ImportExportDialog(),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Barra Guardrails & Audit
-          GuardrailsBar(
-            report: report,
-            onOpenAlerts: () {
-              showDialog(
-                context: context,
-                builder: (_) => GuardrailAuditDialog(report: report),
-              );
-            },
-          ),
-
-          // Area di lavoro Split-Screen
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Pannello Sinistro: Board a Bucket & Curva
-                Expanded(
-                  flex: 3,
-                  child: _buildDeckBoard(context, ref, deck, activeBucket),
-                ),
-
-                // Pannello Destro: Explorer EDHREC & Scryfall
-                const Expanded(
-                  flex: 2,
-                  child: EdhrecExplorerPanel(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeckBoard(
-    BuildContext context,
-    WidgetRef ref,
-    dynamic deck,
-    DeckBucket activeBucket,
-  ) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Comandante Card Banner
-        _buildCommanderBanner(context, ref, deck),
-        const SizedBox(height: 16),
-
-        // Curva di mana e Pips
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: ManaCurveChart(curve: deck.manaCurve)),
-            const SizedBox(width: 12),
-            _buildPipsSummary(deck),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Lista Bucket rigidi secondo BASE.md
-        for (final bucket in DeckBucket.values)
-          _buildBucketSection(context, ref, deck, bucket, activeBucket == bucket),
-      ],
-    );
-  }
-
-  Widget _buildCommanderBanner(BuildContext context, WidgetRef ref, dynamic deck) {
-    final commander = deck.commander;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.cardDark,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.primaryGold.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          if (commander?.artCropUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                commander!.artCropUrl!,
-                width: 72,
-                height: 52,
-                fit: BoxFit.cover,
-              ),
-            )
-          else
-            Container(
-              width: 72,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white10,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.shield, color: AppTheme.primaryGold, size: 28),
-            ),
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'audit',
+                child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryGold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'COMANDANTE',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryGold),
-                      ),
-                    ),
+                    const Icon(Icons.fact_check_outlined, size: 16),
                     const SizedBox(width: 8),
-                    if (commander != null)
-                      Text(
-                        commander.manaCost,
-                        style: const TextStyle(fontSize: 12, color: Colors.white70),
-                      ),
+                    Text('Audit BASE.md (${report.alerts.length} avvisi)', style: const TextStyle(fontSize: 12)),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  commander?.name ?? 'Nessun Comandante selezionato',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const PopupMenuItem(
+                value: 'import_export',
+                child: Row(
+                  children: [
+                    Icon(Icons.sync_alt, size: 16),
+                    SizedBox(width: 8),
+                    Text('Importa / Esporta', style: TextStyle(fontSize: 12)),
+                  ],
                 ),
-                if (commander != null)
-                  Text(
-                    commander.typeLine,
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-              ],
-            ),
-          ),
-
-          ElevatedButton.icon(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => const CommanderSelectorDialog(),
-              );
-            },
-            icon: const Icon(Icons.search, size: 16),
-            label: Text(commander == null ? 'Scegli' : 'Cambia'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGold,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPipsSummary(dynamic deck) {
-    final pips = deck.manaPips as Map<String, int>;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.cardDark,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.borderDark),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Simboli Mana (Pips)', style: TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final color in ['W', 'U', 'B', 'R', 'G']) ...[
-                _buildPipBadge(color, pips[color] ?? 0),
-                if (color != 'G') const SizedBox(width: 6),
-              ],
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'change_commander',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 16, color: AppTheme.accentRed),
+                    SizedBox(width: 8),
+                    Text('Cambia Comandante', style: TextStyle(fontSize: 12, color: AppTheme.accentRed)),
+                  ],
+                ),
+              ),
             ],
           ),
+          const SizedBox(width: 8),
         ],
       ),
-    );
-  }
-
-  Widget _buildPipBadge(String color, int count) {
-    Color badgeColor;
-    switch (color) {
-      case 'W':
-        badgeColor = const Color(0xFFF9FAFB);
-        break;
-      case 'U':
-        badgeColor = AppTheme.accentBlue;
-        break;
-      case 'B':
-        badgeColor = const Color(0xFF6B7280);
-        break;
-      case 'R':
-        badgeColor = AppTheme.accentRed;
-        break;
-      case 'G':
-        badgeColor = AppTheme.accentGreen;
-        break;
-      default:
-        badgeColor = Colors.white;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(color, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor)),
-          const SizedBox(width: 4),
-          Text('$count', style: const TextStyle(fontSize: 11, color: Colors.white)),
+          // Pannello Sinistro: I 10 Bucket compatti e lineari
+          Expanded(
+            flex: 3,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              children: [
+                for (final bucket in DeckBucket.values)
+                  _buildMinimalBucketSection(context, ref, deck, bucket, activeBucket == bucket),
+              ],
+            ),
+          ),
+
+          // Pannello Destro: Explorer EDHREC minimale per il bucket attivo
+          const Expanded(
+            flex: 2,
+            child: EdhrecExplorerPanel(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBucketSection(
+  Widget _buildMinimalBucketSection(
     BuildContext context,
     WidgetRef ref,
     dynamic deck,
@@ -356,87 +377,51 @@ class DeckBuilderScreen extends ConsumerWidget {
     final cards = deck.cardsInBucket(bucket);
     final count = cards.length;
     final target = deck.archetype.targetFor(bucket);
-    final isFull = count == target;
+    final isDone = count == target;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isActive ? AppTheme.cardHover.withValues(alpha: 0.6) : AppTheme.cardDark.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(10),
+        color: isActive ? AppTheme.surfaceDark : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isActive ? AppTheme.primaryGold : (isFull ? AppTheme.accentGreen.withValues(alpha: 0.3) : AppTheme.borderDark),
-          width: isActive ? 1.5 : 1.0,
+          color: isActive ? AppTheme.borderDark : Colors.transparent,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header del bucket
+          // Riga d'intestazione bucket: pulita, scura, senza pulsantoni
           InkWell(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            borderRadius: BorderRadius.circular(8),
             onTap: () {
               ref.read(selectedBucketProvider.notifier).state = bucket;
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              bucket.label,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-                            ),
-                            const SizedBox(width: 8),
-                            // Badge conteggio
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isFull
-                                    ? AppTheme.accentGreen.withValues(alpha: 0.2)
-                                    : (count > target ? AppTheme.accentRed.withValues(alpha: 0.2) : Colors.white10),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '$count / $target',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: isFull ? AppTheme.accentGreen : (count > target ? AppTheme.accentRed : Colors.white70),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          bucket.description,
-                          style: const TextStyle(fontSize: 11, color: Colors.white38),
-                        ),
-                      ],
+                  Icon(
+                    isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+                    size: 14,
+                    color: isActive ? AppTheme.primaryGold : Colors.white24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    bucket.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                      color: isActive ? Colors.white : Colors.white70,
                     ),
                   ),
-
-                  // Bottone "Esplora sinergie per questo slot"
-                  TextButton.icon(
-                    onPressed: () {
-                      ref.read(selectedBucketProvider.notifier).state = bucket;
-                    },
-                    icon: Icon(
-                      Icons.filter_list,
-                      size: 14,
-                      color: isActive ? AppTheme.primaryGold : Colors.white54,
-                    ),
-                    label: Text(
-                      isActive ? 'Attivo' : 'Cerca',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isActive ? AppTheme.primaryGold : Colors.white54,
-                      ),
+                  const Spacer(),
+                  Text(
+                    '$count / $target',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDone ? AppTheme.accentGreen : (count > target ? AppTheme.accentRed : Colors.white38),
                     ),
                   ),
                 ],
@@ -444,10 +429,10 @@ class DeckBuilderScreen extends ConsumerWidget {
             ),
           ),
 
-          // Elenco carte del bucket
+          // Se ci sono carte, mostrale in modo super compatto
           if (cards.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.only(left: 12, right: 8, bottom: 6),
               child: Column(
                 children: [
                   for (final card in cards)
@@ -458,22 +443,6 @@ class DeckBuilderScreen extends ConsumerWidget {
                           ref.read(deckProvider.notifier).moveCardToBucket(card.id, newBucket),
                     ),
                 ],
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  ref.read(selectedBucketProvider.notifier).state = bucket;
-                },
-                icon: const Icon(Icons.add, size: 14),
-                label: Text('Slot vuoto — visualizza raccomandazioni EDHREC per ${bucket.label}'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white54,
-                  side: const BorderSide(color: AppTheme.borderDark, style: BorderStyle.solid),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
               ),
             ),
         ],
