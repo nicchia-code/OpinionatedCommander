@@ -6,12 +6,14 @@ import '../models/deck_bucket.dart';
 class DeckStorageService {
   static const String _deckListKey = 'opinionated_commander_deck_ids';
   static const String _deckPrefix = 'opinionated_deck_';
+  static const String _lastActiveDeckKey = 'opinionated_last_active_deck_id';
 
   /// Salva il mazzo nel LocalStorage
   Future<void> saveDeck(CommanderDeck deck) async {
     final prefs = await SharedPreferences.getInstance();
     final deckJson = json.encode(deck.toJson());
     await prefs.setString('$_deckPrefix${deck.id}', deckJson);
+    await prefs.setString(_lastActiveDeckKey, deck.id);
 
     // Aggiorna l'indice dei mazzi
     final ids = prefs.getStringList(_deckListKey) ?? [];
@@ -19,6 +21,22 @@ class DeckStorageService {
       ids.add(deck.id);
       await prefs.setStringList(_deckListKey, ids);
     }
+  }
+
+  /// Recupera l'ultimo mazzo attivo
+  Future<CommanderDeck?> loadLastActiveDeck() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastId = prefs.getString(_lastActiveDeckKey);
+    if (lastId != null) {
+      final raw = prefs.getString('$_deckPrefix$lastId');
+      if (raw != null) {
+        try {
+          return CommanderDeck.fromJson(json.decode(raw) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+    }
+    final all = await loadAllDecks();
+    return all.isNotEmpty ? all.first : null;
   }
 
   /// Recupera tutti i mazzi salvati

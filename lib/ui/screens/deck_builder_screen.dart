@@ -10,6 +10,7 @@ import '../widgets/card_hover_preview.dart';
 import '../widgets/edhrec_explorer_panel.dart';
 import '../widgets/guardrail_audit_dialog.dart';
 import '../widgets/import_export_dialog.dart';
+import '../widgets/saved_decks_dialog.dart';
 
 class DeckBuilderScreen extends ConsumerStatefulWidget {
   const DeckBuilderScreen({super.key});
@@ -199,17 +200,31 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                         ),
 
                       const SizedBox(height: 24),
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => const ImportExportDialog(),
-                            );
-                          },
-                          icon: const Icon(Icons.file_upload_outlined, size: 16, color: Colors.white54),
-                          label: const Text('Oppure importa una decklist esistente', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const SavedDecksDialog(),
+                              );
+                            },
+                            icon: const Icon(Icons.folder_open, size: 16, color: Colors.white70),
+                            label: const Text('I Miei Mazzi Salvati', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          ),
+                          const SizedBox(width: 16),
+                          TextButton.icon(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const ImportExportDialog(),
+                              );
+                            },
+                            icon: const Icon(Icons.file_upload_outlined, size: 16, color: Colors.white54),
+                            label: const Text('Importa decklist', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -337,6 +352,11 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                   context: context,
                   builder: (_) => GuardrailAuditDialog(report: report),
                 );
+              } else if (action == 'saved_decks') {
+                showDialog(
+                  context: context,
+                  builder: (_) => const SavedDecksDialog(),
+                );
               } else if (action == 'import_export') {
                 showDialog(
                   context: context,
@@ -370,6 +390,16 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
                   ),
                 ),
               const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'saved_decks',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open, size: 16),
+                    SizedBox(width: 8),
+                    Text('I Miei Mazzi Salvati', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'audit',
                 child: Row(

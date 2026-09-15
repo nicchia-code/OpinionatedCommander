@@ -33,6 +33,12 @@ final selectedBucketProvider = StateProvider<DeckBucket>((ref) => DeckBucket.syn
 /// Query di ricerca nell'explorer a destra
 final explorerSearchQueryProvider = StateProvider<String>((ref) => '');
 
+final savedDecksProvider = FutureProvider.autoDispose<List<CommanderDeck>>((ref) async {
+  ref.watch(deckProvider.select((d) => d.updatedAt));
+  final storage = ref.watch(deckStorageServiceProvider);
+  return storage.loadAllDecks();
+});
+
 /// Notifier per la gestione dello stato del mazzo corrente
 class DeckNotifier extends StateNotifier<CommanderDeck> {
   final DeckStorageService _storage;
@@ -43,7 +49,17 @@ class DeckNotifier extends StateNotifier<CommanderDeck> {
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: 'Nuovo Mazzo Commander',
           updatedAt: DateTime.now(),
-        ));
+        )) {
+    _autoRestoreLastDeck();
+  }
+
+  Future<void> _autoRestoreLastDeck() async {
+    final lastDeck = await _storage.loadLastActiveDeck();
+    if (lastDeck != null && lastDeck.commander != null) {
+      state = lastDeck;
+      hydrateMissingPrices();
+    }
+  }
 
   void setCommander(CommanderCard commander) {
     state = state.copyWith(
@@ -131,7 +147,15 @@ class DeckNotifier extends StateNotifier<CommanderDeck> {
 
   void loadDeck(CommanderDeck loadedDeck) {
     state = loadedDeck;
+    _storage.saveDeck(state);
     hydrateMissingPrices();
+  }
+
+  Future<void> deleteDeck(String id) async {
+    await _storage.deleteDeck(id);
+    if (state.id == id) {
+      clearDeck();
+    }
   }
 
   /// Recupera in background i prezzi Scryfall per le carte pre-esistenti prive di prezzo
